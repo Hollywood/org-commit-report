@@ -26,21 +26,24 @@ async function getRepoData() {
 
 
     //Get List of Repos and their sizes
-    const repoResponse = [].concat.apply([], 
-        (await github.paginate(github.repos.list())).map(n => n.data.map((n) => [n.name , n.owner.login])))
-    
+    const repoResponse = [].concat.apply([],
+        (await github.paginate(github.repos.list())).map(n => n.data.map((n) => [n.name, n.owner.login])))
+
     //Date to process commits from
-    const commitDate = new Date((new Date()).setUTCHours(0,0,0,0)).toISOString()
-    
+    const commitDate = new Date((new Date()).setUTCHours(0, 0, 0, 0)).toISOString()
+
     //List all commits for the repositories contained in the org
-    for(const repository of repoResponse){
-        const commitCount = await github.repos.getParticipationStats({owner: repository[1], repo: repository[0]})
-        
-            const repoParams = Object.assign({}, { owner: repository[1], repo: repository[0]} || {} )
+    for (const repository of repoResponse) {
+        const commitCount = await github.repos.getParticipationStats({ owner: repository[1], repo: repository[0] })
 
-            const pages = await github.paginate(github.repos.listCommits(repoParams))
+        //Remove this parameter below if you want to pull everything for the past year.
+        const startingDate = new Date((new Date()).setUTCHours(0,0,0,0)).toISOString()
 
-            const mapped = pages.map(items => items.data
+        const repoParams = Object.assign({}, { owner: repository[1], repo: repository[0], since: startingDate } || {})
+
+        const pages = await github.paginate(github.repos.listCommits(repoParams))
+
+        const mapped = pages.map(items => items.data
             .map((n) => [
                 n.url,
                 n.commit.tree.sha,
@@ -48,31 +51,31 @@ async function getRepoData() {
                 n.commit.author.date
             ]))
 
-            const commits = [].concat.apply([], mapped)
-            
-            commits.forEach(commit => {
-                table.push({
-                    repo: repository[0],
-                    org: repository[1],
-                    committer: commit[2],
-                    url: commit[0],
-                    sha: commit[1],
-                    date: commit[3]
-                })
+        const commits = [].concat.apply([], mapped)
+
+        commits.forEach(commit => {
+            table.push({
+                repo: repository[0],
+                org: repository[1],
+                committer: commit[2],
+                url: commit[0],
+                sha: commit[1],
+                date: commit[3]
             })
+        })
     }
-        
+
     //Write to CSV file
     const fields = ['repo', 'org', 'committer', 'date', 'url', 'sha']
     var json2csvParser = new Json2csvParser({
-      fields,
-      delimiter: ';'
+        fields,
+        delimiter: ';'
     })
     const csv = json2csvParser.parse(table)
     console.log(csv)
     fs.writeFile('org-commits.csv', csv, function (err) {
-      if (err) throw err
-      console.log('file saved!')
+        if (err) throw err
+        console.log('file saved!')
     })
 }
 
